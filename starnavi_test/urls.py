@@ -3,7 +3,7 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from users.views import RegisterUserView, LoginView, LogoutView
 from posts.views import PostListCreateView, PostDetailView
-from comments.views import CommentListCreateView, CommentDetailView
+from comments.views import CommentListCreateView, CommentDetailView, CommentsDailyBreakdownView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -16,4 +16,5 @@ urlpatterns = [
     path('api/posts/<int:pk>/', PostDetailView.as_view()),
     path('api/posts/<int:post_pk>/comments/', CommentListCreateView.as_view()),
     path('api/comments/<int:pk>/', CommentDetailView.as_view()),
+    path('api/comments-daily-breakdown', CommentsDailyBreakdownView.as_view()),
 ]
