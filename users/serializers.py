@@ -15,7 +15,9 @@ class RegisterUserSerializer(serializers.ModelSerializer):
             'username',
             'email',
             'password',
-            're_password'
+            're_password',
+            'auto_reply_enabled',
+            'auto_reply_delay'
         )
         extra_kwargs = {'password': {'write_only': True}}
 

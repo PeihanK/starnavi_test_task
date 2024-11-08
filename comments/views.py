@@ -7,6 +7,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.utils.dateparse import parse_date
+from comments.tasks import auto_reply_to_comment
 
 
 class CommentListCreateView(generics.ListCreateAPIView):
@@ -17,7 +18,11 @@ class CommentListCreateView(generics.ListCreateAPIView):
 		return Comment.objects.filter(post_id=self.kwargs['post_pk'])
 
 	def perform_create(self, serializer):
-		serializer.save(author=self.request.user, post_id=self.kwargs['post_pk'])
+		comment = serializer.save(author=self.request.user, post_id=self.kwargs['post_pk'])
+		post_author = comment.post.author
+		if post_author.auto_reply_enabled:
+			delay = post_author.auto_reply_delay
+			auto_reply_to_comment.apply_async(args=[comment.id], countdown=delay)
 
 
 class CommentDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -27,33 +32,33 @@ class CommentDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class CommentsDailyBreakdownView(APIView):
-	permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
-	def post(self, request, *args, **kwargs):
-		start_date = request.data.get('start_date')
-		end_date = request.data.get('end_date')
+    def post(self, request, *args, **kwargs):
+        start_date = request.data.get('start_date')
+        end_date = request.data.get('end_date')
 
-		if not start_date or not end_date:
-			return Response({'error': 'You must specify a start and end date'})
+        if not start_date or not end_date:
+            return Response({'error': 'You must specify a start and end date'}, status=status.HTTP_400_BAD_REQUEST)
 
-		try:
-			start_date = parse_date(start_date)
-			end_date = parse_date(end_date)
+        try:
+            start_date = parse_date(start_date)
+            end_date = parse_date(end_date)
+        except ValueError:
+            return Response({"error": "Invalid date format, expected YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
 
-		except ValueError:
-			return Response({"error": "Invalid date format, expected YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
+        comments = Comment.objects.filter(
+            created_at__gte=start_date, created_at__lte=end_date
+        )
 
-		comments = Comment.objects.filter(
-			created_at__gte=start_date, created_at__lte=end_date
-		)
+        daily_breakdown = list(comments.annotate(date=TruncDate('created_at'))
+            .values('date')
+            .annotate(
+                total_comments=Count('id'),
+                blocked_comments=Count('id', filter=Q(is_blocked=True))
+            )
+            .order_by('date')
+        )
 
-		daily_breakdown = comments.annotate(date=TruncDate('created_at')) \
-			.values('date') \
-			.annotate(
-			total_comments=Count('id'),
-			blocked_comments=Count('id', filter=Q(is_blocked=True))
-		) \
-			.order_by('date')
-
-		return Response(daily_breakdown, status=status.HTTP_200_OK)
+        return Response(daily_breakdown, status=status.HTTP_200_OK)
 

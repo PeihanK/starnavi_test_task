@@ -26,6 +26,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     created_at = models.DateTimeField(auto_now_add=True)
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
+    auto_reply_enabled = models.BooleanField(default=False)
+    auto_reply_delay = models.IntegerField(default=30)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username', ]
